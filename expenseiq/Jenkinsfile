@@ -1,0 +1,81 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKERHUB_USER  = credentials('DOCKERHUB_USER')
+        DOCKERHUB_CREDS = credentials('dockerhub-credentials')
+        APP_NAME        = 'expenseiq'
+    }
+
+    stages {
+
+        stage('Pull Code from GitHub') {
+            steps {
+                checkout scm
+                echo 'Code pulled from GitHub'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                dir('backend') {
+                    sh 'npm install'
+                    sh 'npm test'
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                sh "docker build -t ${DOCKERHUB_USER}/${APP_NAME}-backend:latest ./backend"
+                sh "docker build -t ${DOCKERHUB_USER}/${APP_NAME}-frontend:latest ./frontend"
+                echo 'Docker images built successfully'
+            }
+        }
+
+        stage('Push to DockerHub') {
+            steps {
+                sh "echo ${DOCKERHUB_CREDS_PSW} | docker login -u ${DOCKERHUB_CREDS_USR} --password-stdin"
+                sh "docker push ${DOCKERHUB_USER}/${APP_NAME}-backend:latest"
+                sh "docker push ${DOCKERHUB_USER}/${APP_NAME}-frontend:latest"
+                sh 'docker logout'
+                echo 'Images pushed to DockerHub'
+            }
+        }
+
+        stage('Deploy with Docker') {
+            steps {
+                sh "docker stop ${APP_NAME}-frontend ${APP_NAME}-backend ${APP_NAME}-mongo 2>/dev/null || true"
+                sh "docker rm   ${APP_NAME}-frontend ${APP_NAME}-backend ${APP_NAME}-mongo 2>/dev/null || true"
+                sh "docker network create ${APP_NAME}-net 2>/dev/null || true"
+                sh "docker run -d --name ${APP_NAME}-mongo --network ${APP_NAME}-net --restart unless-stopped -v ${APP_NAME}_mongo:/data/db mongo:7.0"
+                sh "sleep 15"
+                sh "docker run -d --name ${APP_NAME}-backend --network ${APP_NAME}-net --restart unless-stopped -p 5000:5000 -e MONGO_URL=mongodb://${APP_NAME}-mongo:27017/expenseiq -e JWT_SECRET=expenseiq_secret_2024 ${DOCKERHUB_USER}/${APP_NAME}-backend:latest"
+                sh "docker run -d --name ${APP_NAME}-frontend --network ${APP_NAME}-net --restart unless-stopped -p 3000:80 ${DOCKERHUB_USER}/${APP_NAME}-frontend:latest"
+                sh 'docker ps'
+                echo 'App deployed successfully'
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                sh 'sleep 20'
+                sh 'curl -sf http://localhost:5000/api/health'
+                echo 'App is running and healthy'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'PIPELINE SUCCESS - App is live'
+        }
+        failure {
+            echo 'PIPELINE FAILED - Check red stage above'
+        }
+        always {
+            sh "docker rmi ${DOCKERHUB_USER}/${APP_NAME}-backend:latest 2>/dev/null || true"
+            sh "docker rmi ${DOCKERHUB_USER}/${APP_NAME}-frontend:latest 2>/dev/null || true"
+        }
+    }
+}
