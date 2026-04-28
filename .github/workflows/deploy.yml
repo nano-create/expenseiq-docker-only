@@ -18,10 +18,10 @@ jobs:
       run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
     - name: Build backend image
-      run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/backend ./backend
+      run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/backend ./expenseiq/backend
 
     - name: Build frontend image
-      run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/frontend ./frontend
+      run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/frontend ./expenseiq/frontend
 
     - name: Push images
       run: |
