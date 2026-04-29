@@ -24,15 +24,14 @@ pipeline {
                 }
             }
         }
-
+        
         stage('Build Docker Images') {
             steps {
-                sh "docker build -t ${DOCKERHUB_USER}/${APP_NAME}-backend:latest ./backend"
-                sh "docker build -t ${DOCKERHUB_USER}/${APP_NAME}-frontend:latest ./frontend"
+                sh "docker build -t ${DOCKERHUB_USER}/${APP_NAME}-backend:latest ./expenseiq/backend"
+                sh "docker build -t ${DOCKERHUB_USER}/${APP_NAME}-frontend:latest ./expenseiq/frontend"
                 echo 'Docker images built successfully'
             }
         }
-
         stage('Push to DockerHub') {
             steps {
                 sh "echo ${DOCKERHUB_CREDS_PSW} | docker login -u ${DOCKERHUB_CREDS_USR} --password-stdin"
